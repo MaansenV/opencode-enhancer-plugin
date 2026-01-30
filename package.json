@@ -1,6 +1,6 @@
 {
   "name": "opencode-enhancer-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Universal Technical Architect & Prompt Enhancer for OpenCode",
   "type": "module",
   "main": "dist/index.js",
