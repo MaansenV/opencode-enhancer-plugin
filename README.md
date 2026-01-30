@@ -105,15 +105,32 @@ Remove from your `opencode.json`:
 
 ## 🆕 What's New in v1.2.0
 
-### 🚀 New Agents
-- **ultraplan** - Iterative Planning Agent with Multi-Review Loop for perfect implementation plans
-- **ask** - Context-Aware Question Answering Agent with Multi-Source Research
-- **review-plan** - Plan Reviewer that critically analyzes plans for completeness and correctness
+### 🚀 New Primary Agents
+Primary agents are user-facing modes you can activate with the `Tab` key:
+
+| Agent | Color | Steps | Purpose |
+|-------|-------|-------|---------|
+| **ultraplan** | Orange (#FF5722) | 20 | Creates perfect implementation plans through up to 3 iterative review loops |
+| **ask** | Blue (#2196F3) | 15 | Answers questions about your codebase using parallel context gathering |
+
+### 🔧 New Subagent
+Subagents work behind the scenes and are called by primary agents:
+
+| Subagent | Purpose |
+|----------|---------|
+| **review-plan** | Analyzes implementation plans for completeness, correctness, and edge cases. Called automatically by `ultraplan` during its review loop. |
 
 ### ⚙️ Enhanced Model Configuration
-- **Hierarchical configuration** via `opencode.json`, environment variables, or per-agent settings
-- **Smart model validation** with automatic fallback to safe defaults
-- **Environment variable support**: `ENHANCER_MODEL_PRIMARY`, `ENHANCER_MODEL_SUBAGENT`, `ENHANCER_MODEL_<AGENT_NAME>`
+Configure models via **priority order** (highest wins):
+
+1. **`opencode.json`** agent configuration
+2. **Specific env var**: `ENHANCER_MODEL_<AGENT_NAME>` (e.g., `ENHANCER_MODEL_REVIEW_PLAN`)
+3. **Group env var**: `ENHANCER_MODEL_PRIMARY` or `ENHANCER_MODEL_SUBAGENT`
+4. **Default**: `opencode/kimi-k2.5-free`
+
+Features:
+- **Smart validation**: Auto-fallback to default for invalid model providers
+- **Supported providers**: `opencode/*`, `anthropic/*`, `openai/*`, `google/*`, `mistral/*`, `cohere/*`, `ollama/*`
 
 ---
 
@@ -148,11 +165,25 @@ use context7
 
 ### Components
 
-| Component | Type | Description |
-|-----------|------|-------------|
-| **Enhancer** | Primary Agent | Main interface, intent classification, prompt generation |
-| **Explore-Context** | Subagent | Read-only codebase analysis, tech stack detection |
-| **check_context7** | Tool | Decides if libraries need Context7 documentation |
+#### Primary Agents (User-Facing)
+Activated via `Tab` key in OpenCode:
+
+| Agent | Color | Steps | Description |
+|-------|-------|-------|-------------|
+| **enhancer** | Purple (#9C27B0) | 15 | Universal Technical Architect - analyzes intent and generates executable prompts |
+| **ultraplan** | Orange (#FF5722) | 20 | Iterative Planner - creates plans through parallel subagent analysis and review loops |
+| **ask** | Blue (#2196F3) | 15 | Research Assistant - answers codebase questions via multi-source context gathering |
+
+#### Subagents (Background Workers)
+Called automatically by primary agents via `task` tool:
+
+| Subagent | Called By | Description |
+|----------|-----------|-------------|
+| **explore-context** | enhancer, ultraplan, ask | Maps project structure, detects tech stack, identifies entry points |
+| **explore-code** | enhancer, ultraplan, ask | Deep-dive source code analysis for relevant files and patterns |
+| **explore-deps** | enhancer, ultraplan, ask | Analyzes dependencies, imports, and external libraries |
+| **explore-tests** | ultraplan, ask (for TEST intent) | Discovers test framework, patterns, and existing coverage |
+| **review-plan** | ultraplan only | Critical analysis of implementation plans during review loop |
 
 ### Supported Tech Stacks
 
@@ -188,10 +219,6 @@ The plugin automatically registers agents via the `config` hook with **configura
   tools: { list: true, read: true, grep: true, bash: true }
 }
 ```
-
-**Available Agents (v1.2.0):**
-- **Primary:** `enhancer`, `ultraplan`, `ask`
-- **Subagents:** `explore-context`, `explore-code`, `explore-deps`, `explore-tests`, `review-plan`
 
 ### Model Configuration
 
@@ -233,15 +260,25 @@ export ENHANCER_MODEL_REVIEW_PLAN="anthropic/claude-opus-4"
 export ENHANCER_MODEL_ENHANCER="anthropic/claude-sonnet-4-5"
 ```
 
-#### Model Recommendations
+#### Model Recommendations by Agent Type
+
+**Primary Agents** (Use stronger models for complex reasoning):
 
 | Agent | Recommended | Minimum | Purpose |
 |-------|-----------|---------|---------|
-| enhancer | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Architecture decisions |
-| ultraplan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Iterative planning |
-| ask | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Question answering |
-| review-plan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Critical analysis |
-| explore-* | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Information gathering |
+| enhancer | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Intent classification & prompt generation |
+| ultraplan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Iterative planning with review loops |
+| ask | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Multi-source research & synthesis |
+
+**Subagents** (Lightweight models sufficient for information gathering):
+
+| Subagent | Recommended | Minimum | Purpose |
+|----------|-------------|---------|---------|
+| review-plan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Critical plan analysis (called by ultraplan) |
+| explore-context | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Project structure mapping |
+| explore-code | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Source code analysis |
+| explore-deps | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Dependency analysis |
+| explore-tests | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Test pattern discovery |
 
 #### Validation
 
