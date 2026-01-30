@@ -1,0 +1,43 @@
+{
+  "name": "opencode-enhancer-plugin",
+  "version": "1.0.0",
+  "description": "Universal Technical Architect & Prompt Enhancer for OpenCode",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "enhancer",
+    "prompt",
+    "context",
+    "ai",
+    "agent",
+    "openai",
+    "anthropic",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaansenV/opencode-enhancer-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MaansenV/opencode-enhancer-plugin/issues"
+  },
+  "homepage": "https://github.com/MaansenV/opencode-enhancer-plugin#readme",
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.1.39",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,76 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lock
+
+# Build info (keep dist/ for npm publishing)
+*.tsbuildinfo
+
+# Environment and secrets - NEVER commit these
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+.env.test
+
+# API keys and credentials - CRITICAL
+*.key
+*.pem
+*.cert
+*.secret
+api-keys.json
+credentials.json
+tokens.json
+
+# IDE and editor configs
+.claude/
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Debug and logs
+*.log
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Development directories
+opencode-dev/
+dev/
+development/
+
+# Private documentation
+AGENT-PROMPT.md
+INSTRUCTIONS.md
+PUBLISHING.md
+*.private.md
+
+# Backup files
+*.bak
+*.backup
+
+# Local config files
+*.local.json
+*.local.ts
+*.local.js
