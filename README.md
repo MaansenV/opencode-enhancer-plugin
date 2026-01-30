@@ -66,6 +66,7 @@ Plan → Build → Enhancer → Plan
 ### Version Management
 
 - **Latest version**: `"opencode-enhancer-plugin@latest"`
+- **Current version**: `"opencode-enhancer-plugin@1.2.0"`
 - **Specific version**: `"opencode-enhancer-plugin@1.0.0"`
 - **Update**: OpenCode auto-updates plugins on startup, or run `opencode --update-plugins`
 
@@ -101,6 +102,20 @@ Remove from your `opencode.json`:
 3. **Enhancer analyzes** - Calls explore-context to map your codebase
 4. **Receive enhanced prompt** - Structured markdown with context, instructions, and technical requirements
 5. **Copy & Execute** - Switch to Build mode and run the generated prompt
+
+## 🆕 What's New in v1.2.0
+
+### 🚀 New Agents
+- **ultraplan** - Iterative Planning Agent with Multi-Review Loop for perfect implementation plans
+- **ask** - Context-Aware Question Answering Agent with Multi-Source Research
+- **review-plan** - Plan Reviewer that critically analyzes plans for completeness and correctness
+
+### ⚙️ Enhanced Model Configuration
+- **Hierarchical configuration** via `opencode.json`, environment variables, or per-agent settings
+- **Smart model validation** with automatic fallback to safe defaults
+- **Environment variable support**: `ENHANCER_MODEL_PRIMARY`, `ENHANCER_MODEL_SUBAGENT`, `ENHANCER_MODEL_<AGENT_NAME>`
+
+---
 
 ## 🎨 Example Output
 
@@ -152,27 +167,94 @@ use context7
 
 ### Agent Configuration
 
-The plugin automatically registers both agents via the `config` hook:
+The plugin automatically registers agents via the `config` hook with **configurable models**:
 
 ```typescript
-// Enhancer (Primary Agent)
+// Enhancer (Primary Agent) - Model configurable via opencode.json or env vars
 {
   mode: "primary",
-  model: "opencode/kimi-k2.5-free",
+  model: "opencode/kimi-k2.5-free",  // Default, can be overridden
   description: "Universal Technical Architect & Prompt Enhancer",
   color: "#9C27B0",
   steps: 15,
   tools: { task: true, read: true }
 }
 
-// Explore-Context (Subagent)
+// Explore-Context (Subagent) - Model configurable via opencode.json or env vars
 {
   mode: "subagent",
   hidden: true,
-  model: "opencode/kimi-k2.5-free",
+  model: "opencode/kimi-k2.5-free",  // Default, can be overridden
   tools: { list: true, read: true, grep: true, bash: true }
 }
 ```
+
+**Available Agents (v1.2.0):**
+- **Primary:** `enhancer`, `ultraplan`, `ask`
+- **Subagents:** `explore-context`, `explore-code`, `explore-deps`, `explore-tests`, `review-plan`
+
+### Model Configuration
+
+You can configure custom models for Enhancer agents. This is useful for:
+- Using more powerful models for complex planning tasks
+- Saving costs by using simpler models for subagents
+- Testing specific models for certain task types
+
+#### Configuration Methods (Priority: Highest → Lowest)
+
+##### 1. OpenCode Agent Config (Recommended)
+Configure models directly in your `opencode.json`:
+
+```json
+{
+  "agent": {
+    "review-plan": {
+      "model": "anthropic/claude-sonnet-4-5"
+    },
+    "enhancer": {
+      "model": "anthropic/claude-sonnet-4-5"
+    }
+  }
+}
+```
+
+##### 2. Environment Variables
+Use environment variables for CI/CD or temporary changes:
+
+```bash
+# All Subagents
+export ENHANCER_MODEL_SUBAGENT="opencode/kimi-k2.5-free"
+
+# All Primary Agents  
+export ENHANCER_MODEL_PRIMARY="anthropic/claude-sonnet-4-5"
+
+# Specific Agent (highest priority among env vars)
+export ENHANCER_MODEL_REVIEW_PLAN="anthropic/claude-opus-4"
+export ENHANCER_MODEL_ENHANCER="anthropic/claude-sonnet-4-5"
+```
+
+#### Model Recommendations
+
+| Agent | Recommended | Minimum | Purpose |
+|-------|-----------|---------|---------|
+| enhancer | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Architecture decisions |
+| ultraplan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Iterative planning |
+| ask | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Question answering |
+| review-plan | anthropic/claude-sonnet-4-5 | opencode/kimi-k2.5-free | Critical analysis |
+| explore-* | opencode/kimi-k2.5-free | opencode/kimi-k2.5-free | Information gathering |
+
+#### Validation
+
+The plugin validates configured models against known providers:
+- `opencode/*`
+- `anthropic/*`
+- `openai/*`
+- `google/*`
+- `mistral/*`
+- `cohere/*`
+- `ollama/*`
+
+Invalid models automatically fall back to the default (`opencode/kimi-k2.5-free`).
 
 ### Context7 Integration
 
