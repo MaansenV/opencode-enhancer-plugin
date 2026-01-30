@@ -1,0 +1,149 @@
+import type { Plugin } from "@opencode-ai/plugin"
+import { homedir } from "os"
+import { join } from "path"
+
+interface KimiRotatorConfig {
+  provider: string           // "kimi-for-coding"
+  keys: string[]             // Array of API keys to rotate through
+  interval: number           // Rotate every X messages
+}
+
+// Path to OpenCode's auth.json
+const AUTH_JSON_PATH = join(homedir(), ".local", "share", "opencode", "auth.json")
+
+// #region agent log
+const _dbg = (loc: string, msg: string, data: Record<string, unknown>, hyp: string) =>
+  fetch("http://127.0.0.1:7244/ingest/e3d0b211-c290-4306-9f38-3bee96de64c1", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      location: loc,
+      message: msg,
+      data,
+      timestamp: Date.now(),
+      sessionId: "debug-session",
+      hypothesisId: hyp,
+      runId: "rotate-auth"
+    })
+  }).catch(() => {})
+// #endregion
+
+export const KimiRotatorPlugin: Plugin = async ({ client }) => {
+  let messageCount = 0
+  let currentKeyIndex = 0
+
+  // Configuration - ADD YOUR API KEYS HERE
+  const config: KimiRotatorConfig = {
+    provider: "kimi-for-coding",
+    keys: [
+      // Add your Kimi API keys here:
+      "sk-kimi-Rqsr9OjMKB8yrmvHPfdfkvRetR81bZdpi7hZSYttXxUcM0D5JBli109yQ5MgMH8k",
+      "sk-kimi-ukFTcFJimIWO4F9ZsROoFksNHdve1mJOfMrSwEFQpb2OOt6GfUwUqr1CYBitbD1J", 
+      "sk-kimi-3YF8bLEqCh7iHVV6QPx88Jse6fghW8XQkdCFi8u4ej5bFlIY68Xfd1llc09inNTI",
+    ],
+    interval: 1  // Rotate every 5 messages
+  }
+
+  // Filter out placeholder keys
+  const maskKey = (key: string) => {
+    if (!key) return "none"
+    const suffix = key.slice(-4)
+    return `len:${key.length}-****${suffix}`
+  }
+
+  config.keys = config.keys.filter(k => !k.startsWith("YOUR_"))
+  // #region agent log
+  _dbg("kimi-rotator.ts:CONFIG_KEYS", "Configured key hints", { provider: config.provider, keysCount: config.keys.length, keyHints: config.keys.map(maskKey) }, "H1")
+  // #endregion
+
+  if (config.keys.length === 0) {
+    // #region agent log
+    _dbg("kimi-rotator.ts:NO_KEYS", "No keys configured", { keysCount: 0 }, "H1")
+    // #endregion
+    client.app.log({
+      service: "kimi-rotator",
+      level: "warn",
+      message: "No API keys configured! Edit kimi-rotator.ts and add your keys."
+    }).catch(() => {})
+    return {}
+  }
+
+  /**
+   * Rotate to the next API key by modifying auth.json
+   */
+  const rotateKey = async (): Promise<boolean> => {
+    // #region agent log
+    _dbg("kimi-rotator.ts:ROTATE_ENTRY", "rotateKey invoked", { messageCount, currentKeyIndex, keysCount: config.keys.length }, "H2")
+    // #endregion
+    try {
+      // #region agent log
+      const authExists = await Bun.file(AUTH_JSON_PATH).exists()
+      _dbg("kimi-rotator.ts:AUTH_EXISTS", "auth.json existence", { exists: authExists, path: AUTH_JSON_PATH }, "H3")
+      // #endregion
+      // Read current auth.json
+      const authFile = Bun.file(AUTH_JSON_PATH)
+      const authData = await authFile.json()
+      const currentFileKey = authData?.[config.provider]?.key as string | undefined
+      // Determine current index from auth.json, if possible
+      const matchedIndex = currentFileKey
+        ? config.keys.findIndex((k) => k === currentFileKey)
+        : -1
+      if (matchedIndex >= 0) {
+        currentKeyIndex = matchedIndex
+      }
+      // #region agent log
+      _dbg("kimi-rotator.ts:AUTH_READ", "auth.json read", { hasProvider: !!authData[config.provider], keyHint: maskKey(currentFileKey || ""), matchedIndex }, "H3")
+      // #endregion
+
+      // Get next key index
+      currentKeyIndex = (currentKeyIndex + 1) % config.keys.length
+      const newKey = config.keys[currentKeyIndex]
+      // #region agent log
+      _dbg("kimi-rotator.ts:ROTATE_TARGET", "Target key selected", { index: currentKeyIndex, keyHint: maskKey(newKey) }, "H2")
+      // #endregion
+
+      // Update the provider's key
+      if (!authData[config.provider]) {
+        authData[config.provider] = { type: "api" }
+      }
+      authData[config.provider].key = newKey
+
+      // Write back to auth.json
+      await Bun.write(AUTH_JSON_PATH, JSON.stringify(authData, null, 2))
+      // Read back to confirm
+      const verifyData = await Bun.file(AUTH_JSON_PATH).json()
+      const verifyKey = verifyData?.[config.provider]?.key as string | undefined
+      // #region agent log
+      _dbg("kimi-rotator.ts:AUTH_WRITE", "auth.json updated", { provider: config.provider, index: currentKeyIndex, keyHint: maskKey(verifyKey || ""), matchesTarget: maskKey(verifyKey || "") === maskKey(newKey) }, "H4")
+      // #endregion
+
+      return true
+    } catch (e: any) {
+      // #region agent log
+      _dbg("kimi-rotator.ts:ROTATE_ERROR", "rotateKey failed", { error: e?.message }, "H5")
+      // #endregion
+      client.app.log({
+        service: "kimi-rotator",
+        level: "error",
+        message: `Failed to rotate key: ${e?.message}`
+      }).catch(() => {})
+      return false
+    }
+  }
+
+  // Log initialization
+  client.app.log({
+    service: "kimi-rotator",
+    level: "info",
+    message: `Initialized with ${config.keys.length} keys for ${config.provider}, rotating every ${config.interval} messages`
+  }).catch(() => {})
+
+  return {
+    "tool.execute.before": async (input, output) => {
+      // #region agent log
+      _dbg("kimi-rotator.ts:TOOL_EXECUTE_BEFORE", "tool.execute.before received", { tool: input.tool }, "H7")
+      // #endregion
+      await rotateKey()
+    }
+  }
+}

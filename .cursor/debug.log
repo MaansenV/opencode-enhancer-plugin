@@ -1,0 +1,3 @@
+{"location":"kimi-proxy.ts:27","message":"Before path check","data":{"pathname":"/v1/chat/completions","includesChatCompletions":true},"timestamp":1769601004048,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"kimi-proxy.ts:41","message":"Path check passed - proceeding with rotation","data":{"pathname":"/v1/chat/completions"},"timestamp":1769601004048,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"kimi-proxy.ts:20","message":"Proxy fetch handler called","data":{"method":"POST","pathname":"/v1/chat/completions","fullUrl":"http://localhost:8081/v1/chat/completions","hasBody":true},"timestamp":1769601004048,"sessionId":"debug-session","runId":"run1","hypothesisId":"A,F"}
