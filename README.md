@@ -14,6 +14,8 @@ The **Enhancer** is a third primary agent mode for OpenCode that sits alongside 
 
 - **🔍 Intelligent Context Analysis** - Automatically explores your project structure, tech stack, and relevant files
 - **🧠 Intent Classification** - Categorizes requests as FIX, FEAT, REFACTOR, TEST, or EXPLAIN
+- **🔒 Todo Enforcer System** - Tracks TODOs and prevents stopping until all tasks are completed (for ultraplan and strategos agents)
+- **🎯 Strategos Mode** - Strategic planning with interview mode for complex tasks
 - **📚 Context7 Integration** - Conditionally includes `use context7` when documentation-heavy frameworks are detected
 - **🎨 Style-Aware** - Mimics your project's coding style and patterns
 - **⚡ One-Click Workflow** - Generates copy-pasteable prompts ready for Build mode
@@ -66,7 +68,7 @@ Plan → Build → Enhancer → Plan
 ### Version Management
 
 - **Latest version**: `"opencode-enhancer-plugin@latest"`
-- **Current version**: `"opencode-enhancer-plugin@1.2.0"`
+- **Current version**: `"opencode-enhancer-plugin@1.4.0"`
 - **Specific version**: `"opencode-enhancer-plugin@1.0.0"`
 - **Update**: OpenCode auto-updates plugins on startup, or run `opencode --update-plugins`
 
@@ -103,34 +105,25 @@ Remove from your `opencode.json`:
 4. **Receive enhanced prompt** - Structured markdown with context, instructions, and technical requirements
 5. **Copy & Execute** - Switch to Build mode and run the generated prompt
 
-## 🆕 What's New in v1.2.0
+## 📝 Changelog
 
-### 🚀 New Primary Agents
-Primary agents are user-facing modes you can activate with the `Tab` key:
+### v1.4.0 - Todo Enforcer & Strategos Mode
+- **🔒 Todo Enforcer System** - Tracks TODOs and prevents stopping until all tasks are completed (for ultraplan and strategos agents)
+- **🎯 Strategos Mode** - New primary agent with strategic planning and interview mode for complex multi-phase tasks
+- **strategos-interviewer** subagent for stakeholder requirement gathering
+- Enhanced hooks for session management and TODO tracking
+- Auto-activation of strategos mode on keyword detection
 
-| Agent | Color | Steps | Purpose |
-|-------|-------|-------|---------|
-| **ultraplan** | Orange (#FF5722) | 20 | Creates perfect implementation plans through up to 3 iterative review loops |
-| **ask** | Blue (#2196F3) | 15 | Answers questions about your codebase using parallel context gathering |
+### v1.2.0 - New Agents & Model Configuration
+- **ultraplan** & **ask** primary agents
+- **review-plan** subagent for critical analysis
+- Enhanced model configuration with environment variables
 
-### 🔧 New Subagent
-Subagents work behind the scenes and are called by primary agents:
-
-| Subagent | Purpose |
-|----------|---------|
-| **review-plan** | Analyzes implementation plans for completeness, correctness, and edge cases. Called automatically by `ultraplan` during its review loop. |
-
-### ⚙️ Enhanced Model Configuration
-Configure models via **priority order** (highest wins):
-
-1. **`opencode.json`** agent configuration
-2. **Specific env var**: `ENHANCER_MODEL_<AGENT_NAME>` (e.g., `ENHANCER_MODEL_REVIEW_PLAN`)
-3. **Group env var**: `ENHANCER_MODEL_PRIMARY` or `ENHANCER_MODEL_SUBAGENT`
-4. **Default**: `opencode/kimi-k2.5-free`
-
-Features:
-- **Smart validation**: Auto-fallback to default for invalid model providers
-- **Supported providers**: `opencode/*`, `anthropic/*`, `openai/*`, `google/*`, `mistral/*`, `cohere/*`, `ollama/*`
+### v1.0.0 - Initial Release
+- **enhancer** primary agent
+- **explore-context** subagent for project analysis
+- Intent classification and Context7 integration
+- Style-aware prompt generation
 
 ---
 
@@ -171,8 +164,9 @@ Activated via `Tab` key in OpenCode:
 | Agent | Color | Steps | Description |
 |-------|-------|-------|-------------|
 | **enhancer** | Purple (#9C27B0) | 15 | Universal Technical Architect - analyzes intent and generates executable prompts |
-| **ultraplan** | Orange (#FF5722) | 20 | Iterative Planner - creates plans through parallel subagent analysis and review loops |
+| **ultraplan** | Orange (#FF5722) | 20 | Iterative Planner with Todo Enforcement - creates plans through parallel subagent analysis and review loops |
 | **ask** | Blue (#2196F3) | 15 | Research Assistant - answers codebase questions via multi-source context gathering |
+| **strategos** | Deep Orange (#BF360C) | 30 | Strategic Planner with Interview Mode - handles complex multi-phase tasks with strategic planning and stakeholder interviews |
 
 #### Subagents (Background Workers)
 Called automatically by primary agents via `task` tool:
@@ -184,6 +178,7 @@ Called automatically by primary agents via `task` tool:
 | **explore-deps** | enhancer, ultraplan, ask | Analyzes dependencies, imports, and external libraries |
 | **explore-tests** | ultraplan, ask (for TEST intent) | Discovers test framework, patterns, and existing coverage |
 | **review-plan** | ultraplan only | Critical analysis of implementation plans during review loop |
+| **strategos-interviewer** | strategos only | Conducts stakeholder interviews to gather strategic requirements and constraints |
 
 ### Supported Tech Stacks
 
@@ -320,9 +315,14 @@ opencode-enhancer-plugin/
 
 ### Hooks
 
-- **`config`** - Registers both agents on startup
-- **`tool.execute.before`** - Logs explore-context calls
-- **`message.updated`** - Appends Build mode hint to outputs
+- **`config`** - Registers agents on startup
+- **`tool.execute.before`** - Logs subagent calls
+- **`message.updated`** - Appends Build mode hint
+- **`message.completed`** - Extracts and stores TODOs
+- **`stop.requested`** - Prevents stop when TODOs are open
+- **`session.start`** - Manages todo store lifecycle
+- **`session.end`** - Manages todo store lifecycle
+- **`user.prompt.submitted`** - Auto-activates strategos mode on keywords
 
 ## 🤝 Contributing
 

@@ -1,4 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin"
+import { TodoParser } from "./utils/todoParser.js";
+import { todoStore } from "./utils/sessionStore.js";
 
 // Configuration Types
 interface AgentModelConfig {
@@ -10,6 +12,25 @@ interface AgentModelConfig {
 interface EnhancerPluginConfig {
   models?: AgentModelConfig;
 }
+
+// === TODO ENFORCER CONSTANTS ===
+const TODO_ENFORCER_AGENTS = ['ultraplan', 'strategos'];
+const TODO_MARKER_START = '<!-- TODOS-START -->';
+const TODO_MARKER_END = '<!-- TODOS-END -->';
+
+// === STRATEGOS MODE CONSTANTS ===
+const STRATEGOS_KEYWORDS = [
+  'strategos',
+  'strategy',
+  'strat',
+  'interview mode',
+  'strategic plan',
+  'complex plan',
+  'architecture decision',
+  'design review',
+  'comprehensive plan',
+  '🎯',
+];
 
 // Validation Constants
 const VALID_MODEL_PATTERNS = [
@@ -23,6 +44,8 @@ const VALID_MODEL_PATTERNS = [
 ];
 
 const DEFAULT_MODEL = "opencode/kimi-k2.5-free";
+
+
 
 // Model Validation Function
 function validateModel(model: string, agentName: string, client: any): string {
@@ -94,7 +117,7 @@ export const EnhancerPlugin: Plugin = async ({ client }: { client: any }) => {
   client.app.log({
     service: "enhancer",
     level: "info",
-    message: "Enhancer plugin initialized with model configuration support"
+    message: "🔥 Enhancer plugin v1.4.0 initialized with Todo Enforcer & Strategos Mode"
   }).catch(() => {})
 
   return {
@@ -122,7 +145,7 @@ export const EnhancerPlugin: Plugin = async ({ client }: { client: any }) => {
         };
       };
 
-      // Configure Subagents with merging
+      // Configure Subagents
       
       // explore-context
       configureAgent('explore-context', 'subagent', {
@@ -212,6 +235,78 @@ OUTPUT FORMAT (Markdown):
         }
       });
 
+      // strategos-interviewer (NEW)
+      configureAgent('strategos-interviewer', 'subagent', {
+        prompt: `You are STRATEGOS INTERVIEWER - a strategic requirements analyst.
+
+YOUR MISSION: Clarify unclear or complex requests through targeted interviewing.
+
+=== INTERVIEW METHODOLOGY ===
+
+1. **Request Analysis** (30 seconds)
+   - Identify the core problem
+   - Recognize ambiguities and assumptions
+   - Mark missing information
+
+2. **Clarification Questions** (2-5 questions)
+   Always ask about:
+   - ✓ **Scope**: What exactly is In/Out of scope?
+   - ✓ **Constraints**: Time, budget, technical limits?
+   - ✓ **Priorities**: What is most important? (Moscow: Must/Should/Could/Won't)
+   - ✓ **Success Criteria**: When is it "done"?
+   - ✓ **Edge Cases**: What could go wrong?
+   - ✓ **Dependencies**: What needs to happen first?
+   - ✓ **Stakeholders**: Who needs to be involved?
+   - ✓ **Integration**: Does it fit the existing architecture?
+
+3. **Follow-up questions** based on answers
+   - Go deeper on critical points
+   - Challenge assumptions
+   - Offer alternatives
+
+=== OUTPUT FORMAT ===
+
+# 🎯 Strategos Interview Report
+
+## Original Request
+[What is this about?]
+
+## Clarification Questions
+
+### Q1: [Question]
+**Context**: [Why is this important?]
+**Options**: [If multiple choice]
+
+### Q2: [Question]
+...
+
+### Q3: [Question]
+...
+
+## Anticipated Complexity
+- **Level**: [Low/Medium/High/Critical]
+- **Estimated Effort**: [X hours/days]
+- **Main Risks**: [List]
+
+## Recommended Approach
+1. [Suggestion 1]
+2. [Suggestion 2]
+
+---
+**Status**: ⏳ Waiting for user answers
+**Next Step**: Evaluate interview → Create plan
+
+=== RULES ===
+- NEVER ask more than 5 questions at once
+- Formulate questions to be easy to answer
+- Offer options for complex decisions
+- ALWAYS wait for user answers before proceeding`,
+        tools: {
+          read: true,
+          task: true,
+        },
+      });
+
       // Configure Primary Agents
       
       // enhancer
@@ -225,6 +320,10 @@ OUTPUT FORMAT (Markdown):
           bash: false,
           edit: false,
           write: false
+        },
+        permission: {
+          edit: "deny",
+          bash: "deny"
         },
         prompt: `You are the CHIEF ARCHITECT (Enhancer). Generate enhanced, executable prompts by gathering context from parallel subagents.
 
@@ -241,9 +340,9 @@ WORKFLOW:
 OUTPUT: Markdown code block with Task, Context, Instructions, Technical Constraints. End with "Copy the code block above and run it in Build mode to execute the plan."`
       });
 
-      // ultraplan
+      // ultraplan (UPDATED with Todo System)
       configureAgent('ultraplan', 'primary', {
-        description: "Iterative Planning Agent with Multi-Review Loop",
+        description: "Planning Agent with Discovery Subagents & Todo Enforcement 🔒",
         color: "#FF5722",
         steps: 20,
         tools: {
@@ -253,56 +352,77 @@ OUTPUT: Markdown code block with Task, Context, Instructions, Technical Constrai
           edit: false,
           write: false
         },
-        prompt: `You are the ULTRAPLAN ARCHITECT - an advanced planning agent that creates perfect implementation plans through iterative review loops.
+        permission: {
+          edit: "deny",
+          bash: "deny"
+        },
+        prompt: `You are the ULTRAPLAN ARCHITECT - create implementation plans through discovery and analysis.
 
 === STRICT WORKFLOW - FOLLOW EXACTLY ===
 
-**STEP 1: ENHANCEMENT PHASE**
-- Classify user intent (FIX/FEAT/REFACTOR/TEST/EXPLAIN)
-- Call appropriate explore-* subagents IN PARALLEL based on intent:
-  * FIX/FEAT: explore-context + explore-code + explore-deps
-  * REFACTOR: explore-context + explore-code + explore-tests  
-  * TEST: explore-context + explore-code + explore-tests + explore-deps
-  * EXPLAIN: explore-context + explore-code
-- WAIT for all subagents to return
-- Synthesize results into enhanced technical context
+**STEP 1: DISCOVERY PHASE**
+Call ALL explore-* subagents IN PARALLEL:
+- explore-context: Project structure and tech stack
+- explore-code: Relevant source code files  
+- explore-deps: Dependencies and imports
+- explore-tests: Test framework and existing tests
 
-**STEP 2: INITIAL PLAN CREATION**
-- Use enhanced context to create comprehensive implementation plan
-- Plan must include:
-  * Specific file paths from analysis (NEVER invent paths)
-  * Step-by-step implementation order
-  * Error handling strategy
-  * Validation/testing approach
-- Store plan in memory
+WAIT for all subagents to return. Synthesize their findings.
 
-**STEP 3: REVIEW LOOP (Iterate up to 3 times max)**
-FOR iteration = 1 TO 3:
-  a. Call "review-plan" subagent via task tool:
-     - Pass current plan and original context
-     - Wait for review report
-  
-  b. Analyze review report:
-     - If NO critical issues AND total issues < 3: BREAK loop (plan is perfect)
-     - If critical issues exist AND iteration < 3: Continue to step c
-     - If iteration == 3 AND issues remain: Log warning but proceed
-  
-  c. Revise plan based on review feedback:
-     - Address all critical issues
-     - Address high-priority warnings
-     - Update plan with improvements
-     - Store revised plan
+**STEP 2: TODO CREATION (CRITICAL!)**
+For every complex task, you MUST create a TODO list:
 
-**STEP 4: FINAL OUTPUT**
-- Output the perfected plan as executable markdown prompt
-- Include "Copy the code block above and run it in **Build** mode to execute the plan."
-- Ensure all file paths are from actual analysis, never invented
+## 📋 My TODOs
+- [ ] Step 1: [Concrete task]
+- [ ] Step 2: [Concrete task]
+- [ ] Step 3: [Concrete task]
+
+Format RULES:
+- ALWAYS use format: "- [ ] Description"
+- Mark completed with: "- [x] Description"
+- Be SPECIFIC (no vague tasks)
+- Create 3-10 todos depending on complexity
+
+**STEP 3: PLAN CREATION**
+Create a comprehensive implementation plan based on discovery results:
+- Specific file paths from actual analysis (NEVER invent paths)
+- Step-by-step implementation order
+- Error handling strategy
+- Validation/testing approach
+
+**STEP 4: OUTPUT**
+Output the plan as an executable markdown prompt with:
+- Clear task description
+- Context from discovery
+- Step-by-step instructions
+- Technical constraints
+- Your TODO list
+
+End with: "Copy the code block above and run it in **Build** mode to execute the plan."
+
+=== TODO ENFORCER SYSTEM 🔒 ===
+
+⚠️ **IMPORTANT**: You CANNOT stop until all Todos are marked with [x]!
+
+The system enforces:
+- Tracking of all your Todos
+- Blocking "Stop" with open Todos
+- Automatic continuation until everything is done
+
+Finish it! 🔥
 
 IMPORTANT RULES:
-- Maximum 3 review iterations to prevent infinite loops
-- Always use task tool for subagent calls
+- All file paths must come from actual code analysis, never invented
 - Never enable write/edit tools (analysis phase only)
-- All file paths must come from actual code analysis`
+- Always use task tool for subagent calls
+
+=== WHEN TO USE STRATEGOS ===
+
+For complex tasks requiring interview mode, use Strategos (Tab → strategos):
+- New features (>1 file)
+- Architecture changes
+- Integrations
+- Performance/Security improvements`
       });
 
       // ask
@@ -316,6 +436,10 @@ IMPORTANT RULES:
           bash: false,
           edit: false,
           write: false
+        },
+        permission: {
+          edit: "deny",
+          bash: "deny"
         },
         prompt: `You are the ASK AGENT - a context-aware research assistant that answers questions by orchestrating parallel sub-agent investigations and synthesizing their findings into comprehensive answers.
 
@@ -391,9 +515,181 @@ Generate a comprehensive answer with this exact structure:
 - Be concise but thorough - prioritize clarity over length
 - Always cite your sources (which sub-agent provided what information)`
       });
+
+      // strategos (NEW - instead of Prometheus)
+      configureAgent('strategos', 'primary', {
+        description: "🎯 Strategic Planner with Interview Mode - Complex task planning through clarification",
+        color: "#FF6F00", // Deep Orange for Strategos
+        steps: 30,
+        tools: {
+          task: true,
+          read: true,
+          bash: false,
+          edit: false,
+          write: false,
+        },
+        permission: {
+          edit: "deny",
+          bash: "deny",
+        },
+        prompt: `You are STRATEGOS - the Strategic General. You plan complex tasks through strategic interviewing and deep analysis.
+
+=== STRATEGOS WORKFLOW ===
+
+**PHASE 1: INTERVIEW (Critical!)**
+
+When the request is complex or unclear (new feature, architecture change, large refactor):
+
+1. Call the **strategos-interviewer** subagent
+2. Let the interviewer ask clarification questions
+3. Analyze the answers
+4. Ask follow-up questions if needed (more interviewer calls)
+
+**ACTIVATE Interview Mode for:**
+- Unclear requirements
+- New features (>1 file affected)
+- Architecture decisions
+- Integration with external systems
+- Performance-critical changes
+
+**PHASE 2: DISCOVERY**
+
+When interview is complete (or for simple requests):
+1. Call ALL explore-* subagents PARALLEL
+2. Analyze: context + code + deps + tests
+3. Synthesize findings
+
+**PHASE 3: STRATEGIC PLANNING**
+
+Create a comprehensive, strategic plan:
+
+# 🎯 Strategos Strategic Plan
+
+## 🎯 Mission Statement
+[1-2 sentences: What is the goal?]
+
+## 📋 Requirements Analysis
+### Must Have (Critical)
+- [Req 1]
+- [Req 2]
+
+### Should Have (Important)
+- [Req 3]
+
+### Could Have (Nice-to-have)
+- [Req 4]
+
+## 🏗️ Architecture Decisions
+| Decision | Rationale | Alternatives Considered |
+|----------|-----------|------------------------|
+| [Decision 1] | [Reasoning] | [Alternative] |
+| [Decision 2] | [Reasoning] | [Alternative] |
+
+## 📊 Implementation Roadmap
+
+### Phase 1: Foundation ([Time estimate])
+**Goal**: [What is achieved here?]
+**Deliverables**:
+- [ ] [Concrete Deliverable 1]
+- [ ] [Concrete Deliverable 2]
+
+**Files to Modify**:
+- \`path/to/file.ts\` - [Why?]
+- \`path/to/config.js\` - [Why?]
+
+**Steps**:
+1. [Concrete step with technology]
+2. [Concrete step]
+3. [Concrete step]
+
+### Phase 2: Core Implementation ([Time estimate])
+...
+
+### Phase 3: Integration & Testing ([Time estimate])
+...
+
+## ⚠️ Risk Assessment
+| Risk | Probability | Impact | Mitigation Strategy |
+|------|------------|--------|-------------------|
+| [Risk 1] | High/Medium/Low | High/Medium/Low | [How to avoid?] |
+| [Risk 2] | ... | ... | ... |
+
+## ✅ Quality Gates
+- [ ] Gate 1: [Criterion]
+- [ ] Gate 2: [Criterion]
+- [ ] Gate 3: [Criterion]
+
+## 🔄 Rollback Strategy
+If something goes wrong:
+1. [Step 1]
+2. [Step 2]
+
+## 🧪 Validation Plan
+[How do we test success?]
+
+## 📝 Open Questions
+- [ ] [Question 1] → [Recommended solution]
+- [ ] [Question 2] → [Recommended solution]
+
+---
+**Planned by**: Strategos Engine 🎯
+**Based on**: Interview + Codebase Analysis
+**Confidence Level**: [High/Medium/Low]
+
+**NEXT STEP**: Copy this plan and run in **Build** mode.
+
+=== STRATEGOS PRINCIPLES ===
+
+🎯 **Strategic Vision**: Anticipate problems BEFORE they occur
+🎯 **Tactical Depth**: Think in phases, not just steps
+🎯 **Risk Awareness**: Every plan has risks - name them
+🎯 **Clarity through Interviewing**: No assumptions, only clear requirements
+
+=== WHEN TO USE STRATEGOS ===
+
+Use Strategos for:
+- ✅ New features (>1 file)
+- ✅ Architecture changes
+- ✅ Integrations (APIs, DBs, external services)
+- ✅ Performance optimizations
+- ✅ Security improvements
+- ✅ Refactors with far-reaching consequences
+
+Use ultraplan for:
+- ✅ Simple bugfixes
+- ✅ Small features (1-2 files)
+- ✅ Documentation
+- ✅ Adding tests
+
+=== TODO SYSTEM 🔒 ===
+
+IMPORTANT: Create TODOs for each phase!
+
+## 📋 My TODOs
+- [ ] Phase 1: [Description]
+- [ ] Phase 2: [Description]
+- [ ] Phase 3: [Description]
+
+⚠️ You cannot stop until all Todos are completed!
+
+=== ACTIVATION KEYWORDS ===
+
+Strategos is automatically activated by:
+- "strategos" in the prompt
+- "interview mode" in the prompt
+- "strategic plan" in the prompt
+- "complex task" in the prompt
+- "🎯" emoji
+
+Or select the strategos Agent manually (Tab → strategos)`,
+      });
       
       // Log configured agent models
-      const configuredAgents = ['explore-context', 'explore-code', 'explore-deps', 'explore-tests', 'review-plan', 'enhancer', 'ultraplan', 'ask'];
+      const configuredAgents = [
+        'explore-context', 'explore-code', 'explore-deps', 'explore-tests', 
+        'review-plan', 'strategos-interviewer',
+        'enhancer', 'ultraplan', 'ask', 'strategos'
+      ];
       const modelSummary = configuredAgents
         .map(name => `${name}=${input.agent[name]?.model || 'default'}`)
         .join(', ');
@@ -401,7 +697,7 @@ Generate a comprehensive answer with this exact structure:
       client.app.log({
         service: "enhancer",
         level: "info",
-        message: `Registered agents: ${Object.keys(input.agent).join(", ")}`
+        message: `🔥 Registered ${Object.keys(input.agent).length} agents: ${Object.keys(input.agent).join(", ")}`
       }).catch(() => {});
       
       client.app.log({
@@ -414,7 +710,10 @@ Generate a comprehensive answer with this exact structure:
     "tool.execute.before": async (input: any, output: any) => {
       if (input.tool === "task") {
         const args = output.args as { subagent_type?: string } | undefined
-        const validSubagents = ["explore-context", "explore-code", "explore-deps", "explore-tests", "review-plan"]
+        const validSubagents = [
+          "explore-context", "explore-code", "explore-deps", 
+          "explore-tests", "review-plan", "strategos-interviewer"
+        ]
         
         if (args?.subagent_type && validSubagents.includes(args.subagent_type)) {
           client.app.log({
@@ -428,7 +727,7 @@ Generate a comprehensive answer with this exact structure:
 
     "message.updated": async (input: any, output: any) => {
       const agentName = input.session?.agent?.name
-      if (agentName !== "enhancer" && agentName !== "ultraplan" && agentName !== "ask") {
+      if (!["enhancer", "ultraplan", "ask", "strategos"].includes(agentName)) {
         return
       }
 
@@ -437,13 +736,180 @@ Generate a comprehensive answer with this exact structure:
         return
       }
 
-      if (content.includes("```markdown") || content.includes("# Task:")) {
+      if (content.includes("\`\`\`markdown") || content.includes("# Task:")) {
         const hint = "\n\n---\n**Next Step**: Copy this entire block and run it in **Build** mode to execute the plan."
         if (output && typeof output === "object") {
           output.content = content + hint
         }
       }
-    }
+    },
+
+    // === TODO ENFORCER: Message Completed Hook ===
+    // Extracts todos from agent responses and stores them
+    "message.completed": async (input: any, output: any) => {
+      const agentName = input.session?.agent?.name;
+      const sessionId = input.session?.id || input.sessionId || 'default';
+      
+      // Only for Todo-enforced agents
+      if (!TODO_ENFORCER_AGENTS.includes(agentName)) {
+        return;
+      }
+
+      try {
+        const content = input.message?.content || output?.content || "";
+        
+        // Extract todos
+        const result = TodoParser.extractTodos(content);
+        
+        if (result.hasTodos) {
+          // Store todos
+          todoStore.set(sessionId, result.todos, agentName);
+          
+          // Log for debugging
+          await client.app.log({
+            service: "enhancer",
+            level: "info",
+            message: `📝 Todos detected in ${agentName}: ${result.completedCount}/${result.todos.length} completed`
+          }).catch(() => {});
+          
+          // Add visual todo block if pending todos exist
+          if (result.pendingCount > 0) {
+            const todoBlock = `\n\n${TODO_MARKER_START}\n## 📋 Open Todos (${result.pendingCount}/${result.todos.length})\n\n${TodoParser.formatTodoList(result.todos, true)}\n\n⚠️ **Note**: You cannot stop until all Todos are completed!\n${TODO_MARKER_END}`;
+            
+            if (output && typeof output === "object") {
+              output.content = content + todoBlock;
+            }
+          }
+        }
+      } catch (error) {
+        await client.app.log({
+          service: "enhancer",
+          level: "warn",
+          message: `Error in todo extraction: ${error}`
+        }).catch(() => {});
+      }
+    },
+
+    // === TODO ENFORCER: Stop Requested Hook ===
+    // Prevents stop when todos are open
+    "stop.requested": async (input: any, output: any) => {
+      const agentName = input.session?.agent?.name;
+      const sessionId = input.session?.id || input.sessionId || 'default';
+      
+      // Only for Todo-enforced agents
+      if (!TODO_ENFORCER_AGENTS.includes(agentName)) {
+        return;
+      }
+
+      try {
+        const unfinishedCount = todoStore.countUnfinished(sessionId);
+        
+        if (unfinishedCount > 0) {
+          const pendingTodos = todoStore.getAllPending(sessionId);
+          
+          // DENY STOP
+          output.continue = true;
+          output.reason = `🛑 **STOP DENIED** - ${unfinishedCount} TODO(S) STILL OPEN!\n\nYou cannot end the session until all tasks are completed. Please work on the remaining todos:\n\n${pendingTodos.map((t, i) => `${i + 1}. [ ] ${t.description}`).join('\n')}\n\n---\n**FORCED CONTINUATION MODE**\nThe agent must now complete the open todos.`;
+          
+          await client.app.log({
+            service: "enhancer",
+            level: "warn",
+            message: `🛑 Stop blocked for ${agentName}: ${unfinishedCount} todos open`
+          }).catch(() => {});
+        } else {
+          // All todos completed - clean up store
+          if (todoStore.has(sessionId)) {
+            todoStore.delete(sessionId);
+            
+            await client.app.log({
+              service: "enhancer",
+              level: "info",
+              message: `✅ All todos completed in ${agentName} - Store cleaned`
+            }).catch(() => {});
+          }
+        }
+      } catch (error) {
+        await client.app.log({
+          service: "enhancer",
+          level: "error",
+          message: `Error in stop.requested hook: ${error}`
+        }).catch(() => {});
+      }
+    },
+
+    // === TODO ENFORCER: Session Start Hook ===
+    // Cleans old todos on new session
+    "session.start": async (input: any, output: any) => {
+      const agentName = input.agent?.name;
+      
+      if (TODO_ENFORCER_AGENTS.includes(agentName)) {
+        // Cleanup old sessions
+        todoStore.cleanup();
+        
+        await client.app.log({
+          service: "enhancer",
+          level: "debug",
+          message: `🔄 New ${agentName} session started - Todo Store cleaned`
+        }).catch(() => {});
+      }
+    },
+
+    // === TODO ENFORCER: Session End Hook ===
+    "session.end": async (input: any, output: any) => {
+      const agentName = input.agent?.name;
+      const sessionId = input.session?.id || input.sessionId || 'default';
+      
+      if (TODO_ENFORCER_AGENTS.includes(agentName)) {
+        // Check if open todos exist
+        if (todoStore.has(sessionId)) {
+          const stats = todoStore.get(sessionId);
+          const unfinished = stats?.todos.filter(t => t.status !== 'completed').length || 0;
+          
+          if (unfinished > 0) {
+            await client.app.log({
+              service: "enhancer",
+              level: "warn",
+              message: `⚠️ Session ended with ${unfinished} open todos`
+            }).catch(() => {});
+          }
+          
+          // Clean up
+          todoStore.delete(sessionId);
+        }
+      }
+    },
+
+    // === STRATEGOS MODE ACTIVATION ===
+    // Auto-switch to strategos on keywords
+    "user.prompt.submitted": async (input: any, output: any) => {
+      const prompt = input.prompt || "";
+      const currentAgent = input.agent?.name;
+      const lowerPrompt = prompt.toLowerCase();
+      
+      // Check for Strategos keywords
+      const detectedKeyword = STRATEGOS_KEYWORDS.find(kw => 
+        lowerPrompt.includes(kw.toLowerCase())
+      );
+      
+      if (detectedKeyword && currentAgent !== 'strategos') {
+        // Switch to strategos Agent
+        output.agent = 'strategos';
+        
+        // Add hint
+        output.hint = `🎯 **Strategos Mode activated** (Keyword: "${detectedKeyword}")\n\nI will interview you first to clarify requirements, then create a strategic plan.`;
+        
+        await client.app.log({
+          service: "enhancer",
+          level: "info",
+          message: `🎯 Strategos Mode activated by keyword: "${detectedKeyword}"`
+        }).catch(() => {});
+      }
+      
+      // Alternative: Interview Mode hint for ultraplan
+      if (lowerPrompt.includes('interview me') && currentAgent === 'ultraplan') {
+        output.hint = `💡 **Tip**: For complex tasks with interview, use the **strategos** Agent (Tab → strategos)`;
+      }
+    },
   }
 }
 

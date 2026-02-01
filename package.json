@@ -1,7 +1,7 @@
 {
   "name": "opencode-enhancer-plugin",
-  "version": "1.2.0",
-  "description": "Universal Technical Architect & Prompt Enhancer for OpenCode",
+  "version": "1.4.0",
+  "description": "Universal Technical Architect & Prompt Enhancer with Todo Enforcer and Strategos Planning Mode",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
